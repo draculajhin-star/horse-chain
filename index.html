@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🐴 马年接龙！</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; }
+  body {
+    background: #FFF8E7;
+    font-family: "PingFang SC", "微软雅黑", sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+    padding: 10px 0 20px;
+  }
+
+  h1 {
+    font-size: 22px;
+    color: #CC5500;
+    margin: 12px 0 4px;
+    letter-spacing: 2px;
+  }
+
+  #subtitle {
+    font-size: 13px;
+    color: #A06020;
+    margin-bottom: 10px;
+  }
+
+  #scene {
+    width: 100%;
+    max-width: 700px;
+    position: relative;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    padding-bottom: 10px;
+  }
+
+  #horse-canvas {
+    display: block;
+    width: 100%;
+    height: 260px;
+  }
+
+  #btn-area {
+    text-align: center;
+    padding: 8px 0 4px;
+  }
+
+  #tap-btn {
+    background: linear-gradient(135deg, #FF6B35, #FF9F1C);
+    color: #fff;
+    font-size: 20px;
+    font-weight: 700;
+    border: none;
+    border-radius: 50px;
+    padding: 14px 44px;
+    cursor: pointer;
+    box-shadow: 0 4px 15px rgba(255,107,53,0.45);
+    transition: transform 0.1s, box-shadow 0.1s;
+    letter-spacing: 2px;
+  }
+  #tap-btn:active { transform: scale(0.93); box-shadow: 0 2px 8px rgba(255,107,53,0.3); }
+
+  #counter {
+    font-size: 14px;
+    color: #C47A30;
+    margin-top: 8px;
+    font-weight: 600;
+  }
+
+  #secret-banner {
+    display: none;
+    text-align: center;
+    font-size: 18px;
+    font-weight: 800;
+    color: #fff;
+    background: linear-gradient(90deg, #FF6B35, #FFD700, #FF6B35);
+    background-size: 200% 100%;
+    animation: shine 1.5s linear infinite;
+    padding: 10px 20px;
+    border-radius: 12px;
+    margin: 8px 16px;
+  }
+  @keyframes shine { 0%{background-position:200% 0} 100%{background-position:0% 0} }
+
+  #share-hint {
+    font-size: 12px;
+    color: #B08040;
+    margin-top: 14px;
+    opacity: 0.8;
+  }
+</style>
+</head>
+<body>
+
+<h1>🐴 马年接龙！</h1>
+<div id="subtitle">点一下，加一匹！看谁能集齐隐藏款～</div>
+
+<div id="scene">
+  <canvas id="horse-canvas"></canvas>
+</div>
+
+<div id="btn-area">
+  <button id="tap-btn" onclick="addHorse()">🐴 点我接龙！</button>
+  <div id="counter">还没有马，点下面开始！</div>
+</div>
+
+<div id="secret-banner"></div>
+
+<div id="share-hint">📲 把这个链接发到QQ群，一起来接龙吧！</div>
+
+<script>
+const canvas = document.getElementById('horse-canvas');
+const ctx = canvas.getContext('2d');
+
+const HORSE_CONFIGS = [
+  { body:'#F5C842', outline:'#D4923A', snout:'#F9DFA0', mane:'#E05030', tail:'#E05030', hoof:'#8B5E2A', label:'⭐' },
+  { body:'#FF8FA3', outline:'#C45070', snout:'#FFBCCA', mane:'#9B59B6', tail:'#9B59B6', hoof:'#8B3060', label:'💕' },
+  { body:'#70C8F0', outline:'#3090C0', snout:'#B8E8FA', mane:'#20A080', tail:'#20A080', hoof:'#1A5C80', label:'🌈' },
+  { body:'#98E87A', outline:'#4A9A30', snout:'#C8F4A8', mane:'#E06020', tail:'#E06020', hoof:'#2A6010', label:'🌸' },
+  { body:'#C9A0FF', outline:'#7A40C0', snout:'#E8D0FF', mane:'#FF6060', tail:'#FF6060', hoof:'#5A2090', label:'🦄' },
+  { body:'#FFA040', outline:'#CC6010', snout:'#FFD090', mane:'#FF3080', tail:'#FF3080', hoof:'#883010', label:'🔥' },
+  { body:'#FF6070', outline:'#CC2040', snout:'#FFB0B8', mane:'#FFD700', tail:'#FFD700', hoof:'#882030', label:'❤️' },
+  { body:'#FFD700', outline:'#CC9900', snout:'#FFF0A0', mane:'#FF4500', tail:'#FF4500', hoof:'#886600', label:'👑', secret: true },
+  { body:'#E0E0E0', outline:'#808080', snout:'#F5F5F5', mane:'#C0C0C0', tail:'#C0C0C0', hoof:'#505050', label:'🌙', secret: true },
+  { body:'#FF1493', outline:'#AA0060', snout:'#FF80C0', mane:'#00FFFF', tail:'#00FFFF', hoof:'#880040', label:'🌈', secret: true },
+];
+
+const SECRET_MSGS = [
+  '🎉 隐藏款【金马王】出现啦！！',
+  '🌙 隐藏款【银月马】解锁！超稀有！',
+  '🌈 隐藏款【彩虹王者】集齐！恭喜！！',
+];
+
+let horses = [];
+let bounceT = 0;
+
+function resize() {
+  const W = Math.min(window.innerWidth, 700);
+  canvas.width = W;
+  canvas.height = 260;
+}
+
+function getSize(n) {
+  const W = canvas.width;
+  if (n <= 1) return Math.min(130, W * 0.85);
+  return Math.min(130, Math.max(50, (W * 0.92) / n - 6));
+}
+
+function drawHorse(cfg, cx, bottomY, size, bOff) {
+  const s = size / 140;
+  ctx.save();
+  ctx.translate(cx - size * 0.5, bottomY + Math.sin(bOff) * 5 * s * 8 - size * 1.1);
+  ctx.scale(s, s);
+
+  // Tail
+  ctx.strokeStyle = cfg.tail; ctx.lineWidth = 6; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(10,60); ctx.bezierCurveTo(-20,55,-28,80,-18,95); ctx.stroke();
+  ctx.lineWidth = 4; ctx.strokeStyle = cfg.tail+'BB';
+  ctx.beginPath(); ctx.moveTo(12,64); ctx.bezierCurveTo(-14,64,-16,84,-8,92); ctx.stroke();
+
+  // Body
+  ctx.fillStyle = cfg.body; ctx.strokeStyle = cfg.outline; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.ellipse(70,55,58,38,0,0,Math.PI*2); ctx.fill(); ctx.stroke();
+
+  // Head
+  ctx.fillStyle = cfg.body; ctx.strokeStyle = cfg.outline; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.ellipse(118,28,28,22,-0.2,0,Math.PI*2); ctx.fill(); ctx.stroke();
+
+  // Snout
+  ctx.fillStyle = cfg.snout; ctx.strokeStyle = cfg.outline; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.ellipse(138,34,13,10,0.2,0,Math.PI*2); ctx.fill(); ctx.stroke();
+
+  // Nostril
+  ctx.fillStyle = cfg.outline;
+  ctx.beginPath(); ctx.ellipse(143,36,3,2,0.3,0,Math.PI*2); ctx.fill();
+
+  // Ear
+  ctx.fillStyle = cfg.body; ctx.strokeStyle = cfg.outline; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(104,12); ctx.lineTo(97,-4); ctx.lineTo(111,2); ctx.closePath();
+  ctx.fill(); ctx.stroke();
+
+  // Mane
+  ctx.strokeStyle = cfg.mane; ctx.lineWidth = 5; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(102,10); ctx.bezierCurveTo(92,-10,80,-16,72,-8); ctx.stroke();
+  ctx.lineWidth = 3.5;
+  ctx.beginPath(); ctx.moveTo(106,8); ctx.bezierCurveTo(98,-6,88,-12,80,-4); ctx.stroke();
+  ctx.lineWidth = 2.5; ctx.strokeStyle = cfg.mane+'AA';
+  ctx.beginPath(); ctx.moveTo(110,7); ctx.bezierCurveTo(104,-2,94,-8,87,0); ctx.stroke();
+
+  // Eye
+  ctx.fillStyle='#fff'; ctx.strokeStyle=cfg.outline; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.ellipse(114,20,5.5,5,0,0,Math.PI*2); ctx.fill(); ctx.stroke();
+  ctx.fillStyle='#2A1A08';
+  ctx.beginPath(); ctx.ellipse(115.5,20,3,3.5,0.1,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#fff';
+  ctx.beginPath(); ctx.ellipse(117,18,1.2,1.2,0,0,Math.PI*2); ctx.fill();
+
+  // Legs
+  [38,54,72,88].forEach((lx,i)=>{
+    const lb = Math.sin(bOff+i*0.5)*4;
+    ctx.fillStyle=cfg.body; ctx.strokeStyle=cfg.outline; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.roundRect(lx-7,88+lb,14,32,7); ctx.fill(); ctx.stroke();
+    ctx.fillStyle=cfg.hoof;
+    ctx.beginPath(); ctx.roundRect(lx-8,114+lb,16,8,4); ctx.fill();
+  });
+
+  // Label
+  ctx.font = '20px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText(cfg.label, 62, 42);
+
+  ctx.restore();
+}
+
+function drawAll() {
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle='#FFF8E7'; ctx.fillRect(0,0,W,H);
+
+  // Ground
+  ctx.fillStyle='#E8C870'; ctx.globalAlpha=0.35;
+  ctx.beginPath(); ctx.roundRect(20,H-22,W-40,8,4); ctx.fill();
+  ctx.globalAlpha=1;
+
+  if (horses.length === 0) {
+    ctx.fillStyle='#C47A30'; ctx.font='bold 18px sans-serif'; ctx.textAlign='center';
+    ctx.fillText('点下面按钮开始接龙吧！🐴', W/2, H/2);
+    return;
+  }
+
+  const n = horses.length;
+  const size = getSize(n);
+  const gap = Math.min(size * 0.08, 8);
+  const totalW = size * n + gap * (n-1);
+  let startX = (W - totalW) / 2;
+
+  horses.forEach((cfg,i)=>{
+    const cx = startX + size*0.5 + i*(size+gap);
+    const off = bounceT*0.1 + i*0.8;
+    drawHorse(cfg, cx, H-18, size, off);
+  });
+}
+
+function animate() {
+  bounceT++;
+  drawAll();
+  requestAnimationFrame(animate);
+}
+
+function addHorse() {
+  if (horses.length >= HORSE_CONFIGS.length) {
+    horses = [];
+    document.getElementById('secret-banner').style.display='none';
+  }
+
+  const idx = horses.length;
+  const cfg = HORSE_CONFIGS[idx];
+  horses.push(cfg);
+
+  const n = horses.length;
+  document.getElementById('counter').textContent = `当前：${n} 匹马 🐴`;
+
+  const banner = document.getElementById('secret-banner');
+  const btn = document.getElementById('tap-btn');
+
+  if (cfg.secret) {
+    const si = [7,8,9].indexOf(idx);
+    banner.textContent = SECRET_MSGS[si] || '🎊 隐藏款出现！！';
+    banner.style.display = 'block';
+    btn.textContent = '🎉 继续接龙！';
+  } else {
+    banner.style.display = 'none';
+    if (n >= HORSE_CONFIGS.length) {
+      btn.textContent = '🔄 重新开始';
+    } else if (n >= 7) {
+      btn.textContent = '🤫 还有隐藏款...';
+    } else {
+      btn.textContent = '🐴 点我接龙！';
+    }
+  }
+}
+
+window.addEventListener('resize', ()=>{ resize(); drawAll(); });
+resize();
+animate();
+</script>
+</body>
+</html>
